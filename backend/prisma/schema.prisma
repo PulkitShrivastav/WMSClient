@@ -1,0 +1,123 @@
+enum UserRole {
+  Admin
+  Billing
+  Manager
+  QC
+}
+
+model User {
+  id                    Int               @id @default(autoincrement())
+  name                  String
+  mobileNumber          String            @unique
+  lastLogin             DateTime?
+  role                  UserRole
+  password_hash         String
+
+  generatedTransactions SaleTransaction[]  @relation("GeneratedTransactions")
+}
+
+model Product {
+  productID              Int                    @id @default(autoincrement())
+  productName            String
+  productCategory        String
+  productBrand           String
+  productCode            String                 @unique
+  costPrice              Int
+  sellingPrice           Int
+  discount                Int?
+  inventory               Int                    @default(0)
+  minimumStockSize        Int                    @default(0)
+  minimumSalesQuantity    Int
+  maximumPurchaseQuantity Int
+  distributorID           Int
+
+  distributor             Distributor            @relation(fields: [distributorID], references: [id])
+  saleTransactionItems    SaleTransactionItem[]
+  purchaseOrderItems      PurchaseOrderItem[]
+}
+
+enum PaymentMethod {
+  upi
+  cash
+}
+
+model SaleTransaction {
+  id                          Int                    @id @default(autoincrement())
+  billNumber                  String                 @unique
+  discountAmount              Int                    @default(0)
+  totalAmount                 Int
+  paidAmount                  Int
+  amountDueOnThisTransaction  Int
+  customerId                  Int
+  transactionTime             DateTime               @default(now())
+  generated_by                Int
+  payment_method              PaymentMethod
+
+  customer                    Customer               @relation(fields: [customerId], references: [id])
+  generatedByUser             User                   @relation("GeneratedTransactions", fields: [generated_by], references: [id])
+  items                       SaleTransactionItem[]
+
+  @@index([customerId])
+  @@index([generated_by])
+}
+
+model SaleTransactionItem {
+  id                Int             @id @default(autoincrement())
+  saleTransactionId Int
+  productId         Int
+  quantity          Int
+  discount          Int
+  sales_price       Int
+
+  saleTransaction   SaleTransaction @relation(fields: [saleTransactionId], references: [id])
+  product           Product         @relation(fields: [productId], references: [productID])
+
+  @@index([saleTransactionId])
+  @@index([productId])
+}
+
+model Customer {
+  id                Int               @id @default(autoincrement())
+  name              String
+  mobileNumber      String            @unique
+  totalAmountDue    Int               @default(0)
+
+  saleTransactions  SaleTransaction[]
+}
+
+model Distributor {
+  id                    Int                  @id @default(autoincrement())
+  distributorName       String
+  organizationName      String
+  mobileNumber          String?
+
+  products              Product[]
+  purchaseTransactions  PurchaseTransaction[]
+}
+
+model PurchaseTransaction {
+  id                  Int                  @id @default(autoincrement())
+  purchaseOrderNumber String
+  distributorId       Int
+  totalAmount         Int
+
+  distributor         Distributor          @relation(fields: [distributorId], references: [id])
+  items               PurchaseOrderItem[]
+
+  @@index([distributorId])
+}
+
+model PurchaseOrderItem {
+  id                    Int                 @id @default(autoincrement())
+  purchaseTransactionId Int
+  productId             Int
+  quantity              Int
+  purchasePrice         Int
+  totalAmount           Int
+
+  purchaseTransaction   PurchaseTransaction @relation(fields: [purchaseTransactionId], references: [id])
+  product               Product              @relation(fields: [productId], references: [productID])
+
+  @@index([purchaseTransactionId])
+  @@index([productId])
+}
