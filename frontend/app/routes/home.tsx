@@ -3,6 +3,11 @@ import type { Route } from "./+types/home";
 import AnalyticDashBoard from "~/components/wholesale_admin_dashboard";
 import { useState } from "react";
 import BillingTerminalWorkspace from "~/components/billing";
+import BillingWorkspace from "~/components/billingWorkspace";
+import InventoryWorkspace from "~/components/inentory";
+import EmployeeCreationWorkspace from "~/components/employee";
+import WholesaleBillingDesk from "~/components/billingAdmin";
+import BillingAdminDesk from "~/components/billingAdmin2";
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -10,12 +15,12 @@ export function meta({ }: Route.MetaArgs) {
   ];
 }
 
-type navTypes = 'Login' | 'Analytics' | 'Billing'
+type navTypes = 'Login' | 'Analytics' | 'Billing' | 'Inventory' | 'Employee' | 'Billing Admin' | 'Billing Admin 2'
 
 export default function Home() {
 
   const [nav, setNav] = useState<navTypes>('Login')
-  const navs: Array<navTypes> = ['Login', 'Analytics', 'Billing']
+  const navs: Array<navTypes> = ['Login', 'Analytics', 'Billing', 'Inventory', 'Employee', 'Billing Admin', 'Billing Admin 2']
 
   return (
     <>
@@ -28,7 +33,11 @@ export default function Home() {
       </div>
       {nav === 'Analytics' ? <AnalyticDashBoard /> : null}
       {nav === 'Login' ? <LoginTerminal /> : null}
-      {nav === 'Billing' ? <BillingTerminalWorkspace /> : null}
+      {nav === 'Billing' ? <BillingWorkspace /> : null}
+      {nav === 'Inventory' ? <InventoryWorkspace /> : null}
+      {nav === 'Employee' ? <EmployeeCreationWorkspace /> : null}
+      {nav === 'Billing Admin' ? <WholesaleBillingDesk /> : null}
+      {nav === 'Billing Admin 2' ? <BillingAdminDesk /> : null}
 
     </>
   )

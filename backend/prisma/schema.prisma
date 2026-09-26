@@ -1,8 +1,72 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
 enum UserRole {
   Admin
   Billing
   Manager
   QC
+}
+
+enum PaymentMethod {
+  upi
+  cash
+}
+
+enum SaleStatus {
+  initiated
+  completed
+}
+
+enum PurchaseStatus {
+  initiated
+  completed
+}
+
+enum OperationalBillStatus {
+  initiated
+  completed
+}
+
+enum BillTypes {
+  electricity
+  rent
+  salary
+  service
+  internet
+}
+
+enum BillPaymentMode {
+  upi
+  cash
+  cheque
+  NEFT
+  RTGS
+  IMPS
+  demandDraft
+}
+
+enum BillPaymentModeRef {
+  CHQ
+  UTR
+  RRN
+  DD
+}
+
+enum PaymentsMadeModes {
+  cash
+  bank
+}
+
+enum ChangeType {
+  purchase_order
+  bill_payment
+  inventory
 }
 
 model User {
@@ -13,52 +77,63 @@ model User {
   role                  UserRole
   password_hash         String
 
-  generatedTransactions SaleTransaction[]  @relation("GeneratedTransactions")
+  generatedTransactions SaleTransaction[] @relation("GeneratedTransactions")
 }
 
 model Product {
-  productID              Int                    @id @default(autoincrement())
-  productName            String
-  productCategory        String
-  productBrand           String
-  productCode            String                 @unique
-  costPrice              Int
-  sellingPrice           Int
-  discount                Int?
-  inventory               Int                    @default(0)
-  minimumStockSize        Int                    @default(0)
-  minimumSalesQuantity    Int
-  maximumPurchaseQuantity Int
-  distributorID           Int
+  productID             Int                   @id @default(autoincrement())
+  productName           String
+  productCategory       String
+  productBrand          String
+  productCode           String                @unique
+  purchasePrice         Int
+  offerID               String?
+  inventory             Int                   @default(0)
+  minimumStockSize      Int                   @default(0)
+  distributorID         Int
 
-  distributor             Distributor            @relation(fields: [distributorID], references: [id])
-  saleTransactionItems    SaleTransactionItem[]
-  purchaseOrderItems      PurchaseOrderItem[]
+  distributor           Distributor           @relation(fields: [distributorID], references: [id])
+  saleTransactionItems  SaleTransactionItem[]
+  purchaseOrderItems    PurchaseOrderItem[]
+  units                 ProductUnits[]
+  offerItems            OfferItems[]
 }
 
-enum PaymentMethod {
-  upi
-  cash
+model ProductUnits {
+  id          Int     @id @default(autoincrement())
+  productID   Int
+  unitName    String
+  unitRef     Int
+  value       Int
+  stock       Int     @default(0)
+  retailPrice Int
+
+  product     Product @relation(fields: [productID], references: [productID])
 }
 
 model SaleTransaction {
-  id                          Int                    @id @default(autoincrement())
-  billNumber                  String                 @unique
-  discountAmount              Int                    @default(0)
-  totalAmount                 Int
-  paidAmount                  Int
-  amountDueOnThisTransaction  Int
-  customerId                  Int
-  transactionTime             DateTime               @default(now())
-  generated_by                Int
-  payment_method              PaymentMethod
+  id                         Int                   @id @default(autoincrement())
+  billNumber                 String                @unique
+  discountAmount             Int                   @default(0)
+  totalAmount                Int
+  paidAmount                 Int
+  amountDueOnThisTransaction Int
+  customerId                 Int
+  transactionTime            DateTime              @default(now())
+  generatedBy                Int
+  completedBy                Int
+  paymentMethod              PaymentMethod
+  saleStatus                 SaleStatus
+  costOfGoodsSold            Int
+  grossProfit                Int
 
-  customer                    Customer               @relation(fields: [customerId], references: [id])
-  generatedByUser             User                   @relation("GeneratedTransactions", fields: [generated_by], references: [id])
-  items                       SaleTransactionItem[]
+  customer                   Customer              @relation(fields: [customerId], references: [id])
+  generatedByUser            User                  @relation("GeneratedTransactions", fields: [generatedBy], references: [id])
+  items                      SaleTransactionItem[]
 
   @@index([customerId])
-  @@index([generated_by])
+  @@index([generatedBy])
+  @@index([completedBy])
 }
 
 model SaleTransactionItem {
@@ -66,6 +141,7 @@ model SaleTransactionItem {
   saleTransactionId Int
   productId         Int
   quantity          Int
+  unit              String
   discount          Int
   sales_price       Int
 
@@ -77,32 +153,39 @@ model SaleTransactionItem {
 }
 
 model Customer {
-  id                Int               @id @default(autoincrement())
-  name              String
-  mobileNumber      String            @unique
-  totalAmountDue    Int               @default(0)
+  id               Int               @id @default(autoincrement())
+  name             String
+  mobileNumber     String            @unique
+  totalAmountDue   Int               @default(0)
 
-  saleTransactions  SaleTransaction[]
+  saleTransactions SaleTransaction[]
 }
 
 model Distributor {
-  id                    Int                  @id @default(autoincrement())
-  distributorName       String
-  organizationName      String
-  mobileNumber          String?
+  id                   Int                   @id @default(autoincrement())
+  distributorName      String
+  organizationName     String
+  mobileNumber         String?
+  totalPayableAmount   Int
 
-  products              Product[]
-  purchaseTransactions  PurchaseTransaction[]
+  products             Product[]
+  purchaseTransactions PurchaseTransaction[]
 }
 
 model PurchaseTransaction {
-  id                  Int                  @id @default(autoincrement())
-  purchaseOrderNumber String
-  distributorId       Int
-  totalAmount         Int
+  id                   Int                 @id @default(autoincrement())
+  purchaseOrderNumber  String              @unique
+  distributorId        Int
+  totalAmount          Int
+  amountPaid           Int
+  dueOnThisTransaction Int
+  totalDueAmount       Int
+  purchaseStatus       PurchaseStatus
+  generatedBy          Int
+  completedBy          Int
 
-  distributor         Distributor          @relation(fields: [distributorId], references: [id])
-  items               PurchaseOrderItem[]
+  distributor          Distributor         @relation(fields: [distributorId], references: [id])
+  items                PurchaseOrderItem[]
 
   @@index([distributorId])
 }
@@ -111,13 +194,77 @@ model PurchaseOrderItem {
   id                    Int                 @id @default(autoincrement())
   purchaseTransactionId Int
   productId             Int
-  quantity              Int
+  orderedQuantity       Int
+  recievedQuantity      Int                 @default(0)
   purchasePrice         Int
-  totalAmount           Int
+  subTotal              Int
 
   purchaseTransaction   PurchaseTransaction @relation(fields: [purchaseTransactionId], references: [id])
-  product               Product              @relation(fields: [productId], references: [productID])
+  product               Product             @relation(fields: [productId], references: [productID])
 
   @@index([purchaseTransactionId])
   @@index([productId])
+}
+
+model OperationalBills {
+  id               Int                   @id @default(autoincrement())
+  billNumber       String                @unique
+  payableTo        String
+  totalAmount      Int
+  status           OperationalBillStatus
+  billType         BillTypes
+  paymentMode      BillPaymentMode
+  paymentReference BillPaymentModeRef
+  referenceID      String
+}
+
+model PayementsMade {
+  id            Int               @id @default(autoincrement())
+  paymentNumber String            @unique
+  paidAmount    Int
+  paymentMode   PaymentsMadeModes
+}
+
+model BalanceSheet {
+  id                   Int      @id @default(autoincrement())
+  date                 DateTime
+  totalCashBalance     Int
+  totalBankBalance     Int
+  totalReciveable      Int
+  totalInventory       Int
+  totalPayable         Int
+  totalCapitol         Int
+  grossProfit          Int
+  grossProfitBeforeTax Int
+  totalCashPayments    Int
+  totalBankPayments    Int
+}
+
+model ChangeLogs {
+  id         Int        @id @default(autoincrement())
+  changetype ChangeType
+  log        String
+}
+
+model Offers {
+  id         Int          @id @default(autoincrement())
+  offerCode  String       @unique
+  offerName  String
+
+  offerItems OfferItems[]
+}
+
+model OfferItems {
+  id                  Int     @id @default(autoincrement())
+  offerCode           String
+  productID           Int
+  minEligibleQuantity Int
+  maxEligibleQuantity Int
+  discount            Int
+
+  offer               Offers  @relation(fields: [offerCode], references: [offerCode])
+  product             Product @relation(fields: [productID], references: [productID])
+
+  @@index([offerCode])
+  @@index([productID])
 }
